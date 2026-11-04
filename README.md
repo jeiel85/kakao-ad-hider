@@ -10,7 +10,14 @@ Windows용 카카오톡 PC 메인 창(친구·채팅 목록) 하단의 배너 �
 
 ## 사용법
 
-### 빌드
+### 내려받기
+
+[Releases](https://github.com/jeiel85/kakao-ad-hider/releases/latest)에서 `KakaoAdHider.exe`를 받아 원하는 폴더에 두고 실행하면 됩니다. 설치 과정은 없습니다.
+
+- 코드 서명이 없는 실행 파일이라 처음 실행할 때 Windows SmartScreen이 "Windows의 PC 보호" 경고를 띄울 수 있습니다. **추가 정보 → 실행**을 누르면 됩니다.
+- 받은 파일이 릴리스 노트의 SHA-256 값과 같은지 PowerShell에서 확인할 수 있습니다: `Get-FileHash .\KakaoAdHider.exe`
+
+### 직접 빌드
 
 [.NET SDK](https://dotnet.microsoft.com/download)가 필요합니다(.NET SDK 10에서 확인). .NET Framework 4.8 참조 어셈블리는 빌드할 때 NuGet에서 자동으로 받습니다.
 
