@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>../KakaoAdHider/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../KakaoAdHider/AdHider.cs" Link="AdHider.cs" />
+    <Compile Include="../KakaoAdHider/BetaLayout.cs" Link="BetaLayout.cs" />
+    <Compile Include="../KakaoAdHider/BetaWindowCrop.cs" Link="BetaWindowCrop.cs" />
+    <Compile Include="../KakaoAdHider/BetaCropWorker.cs" Link="BetaCropWorker.cs" />
+    <Compile Include="../KakaoAdHider/Native.cs" Link="Native.cs" />
+  </ItemGroup>
+</Project>

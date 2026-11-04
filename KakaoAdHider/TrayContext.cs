@@ -19,12 +19,13 @@ namespace KakaoAdHider
         readonly ToolStripMenuItem statusItem;
         readonly ToolStripMenuItem startupItem;
         readonly System.Windows.Forms.Timer scanTimer;
-        readonly AdHider hider = new();
+        readonly AdHider hider = new(backgroundCrop: true);
         readonly Dictionary<uint, IntPtr[]> hooks = new();
         readonly WinEventProc winEventProc; // 네이티브 쪽이 콜백을 계속 쥐고 있으므로 GC되지 않게 필드로 붙잡아 둔다
         readonly SynchronizationContext ui;
         HashSet<uint> processIds = new();
         bool applyPending;
+        bool exiting;
 
         public TrayContext(bool silent)
         {
@@ -95,9 +96,10 @@ namespace KakaoAdHider
         void ApplyAll()
         {
             applyPending = false;
+            if (exiting) return;
             var mains = AdHider.FindMainWindows(processIds);
             var hiding = mains.Count(hider.Apply) > 0;
-            SetStatus(mains.Count == 0 ? "카카오톡 실행 대기 중"
+            SetStatus(processIds.Count == 0 ? "카카오톡 실행 대기 중"
                 : hiding ? "광고 숨기는 중"
                 : "카카오톡 감지됨 (광고 영역 없음)");
         }
@@ -124,8 +126,16 @@ namespace KakaoAdHider
 
         protected override void ExitThreadCore()
         {
+            if (exiting) return;
+            exiting = true;
             scanTimer.Stop();
             foreach (var pid in hooks.Keys.ToList()) Unhook(pid);
+            SetStatus("종료 중 (표시 영역 복원 대기)");
+            hider.StopCrop(() => ui.Post(_ => FinishExit(), null));
+        }
+
+        void FinishExit()
+        {
             hider.RestoreAll();
             tray.Visible = false;
             tray.Icon.Dispose();

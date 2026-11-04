@@ -18,15 +18,29 @@ namespace KakaoAdHider
     /// </remarks>
     internal sealed class AdHider
     {
-        const string ProcessName = "KakaoTalk";
+        static readonly string[] ProcessNames = { "KakaoTalk", "KakaoTalkUI" };
         const string MainClass = "EVA_Window_Dblclk";
         const string SlotClass = "EVA_ChildWindow";
         const string OnlineView = "OnlineMainView";
         const string LockView = "LockModeView";
         const int Tolerance = 2;
-        const int DefaultGap = 1;
 
         readonly List<HiddenWindow> hidden = new();
+        readonly BetaWindowCrop betaCrop;
+        readonly BetaCropWorker betaWorker;
+
+        public AdHider(bool backgroundCrop = false)
+        {
+            if (backgroundCrop) betaWorker = new BetaCropWorker();
+            else betaCrop = new BetaWindowCrop();
+        }
+
+        // 작업 스레드의 복원이 끝난 뒤 트레이 UI에서 나머지 복원/종료를 수행한다.
+        public void StopCrop(Action completed)
+        {
+            if (betaWorker == null) completed();
+            else betaWorker.Stop(completed);
+        }
 
         // 메인 창별 본문 뷰와 광고 슬롯 사이의 원래 간격. 종료할 때 원래 배치로 되돌리는 데 쓴다.
         readonly Dictionary<IntPtr, int> gaps = new();
@@ -34,8 +48,9 @@ namespace KakaoAdHider
         public static HashSet<uint> FindProcessIds()
         {
             var ids = new HashSet<uint>();
-            foreach (var process in Process.GetProcessesByName(ProcessName))
-                using (process) ids.Add((uint)process.Id);
+            foreach (var name in ProcessNames)
+                foreach (var process in Process.GetProcessesByName(name))
+                    using (process) ids.Add((uint)process.Id);
             return ids;
         }
 
@@ -45,9 +60,14 @@ namespace KakaoAdHider
             if (processIds.Count == 0) return mains;
             EnumWindows((h, _) =>
             {
-                if (processIds.Contains(ProcessIdOf(h)) && ClassName(h) == MainClass
+                if (!processIds.Contains(ProcessIdOf(h))) return true;
+                if (ClassName(h) == MainClass
                     && Children(h).Any(c => Text(c).StartsWith(OnlineView, StringComparison.Ordinal)))
                     mains.Add(h);
+                // 이동 도중 좌표가 어긋나도 이미 처리 중인 베타 창에 이벤트를 계속 전달한다.
+                // 최초 숨김/크롭은 Apply에서 별도로 위치 관계를 검증한다.
+                var betaMain = BetaLayout.OwnerOfAdPopup(h);
+                if (betaMain != IntPtr.Zero && !mains.Contains(betaMain)) mains.Add(betaMain);
                 return true;
             }, IntPtr.Zero);
             return mains;
@@ -58,6 +78,25 @@ namespace KakaoAdHider
         {
             using (new DpiScope(main))
             {
+                if (BetaLayout.IsQtWindow(main))
+                {
+                    var popups = BetaLayout.FindPopups(main);
+                    foreach (var popup in popups) Hide(popup);
+                    var hasKnownPopup = false;
+                    // 이번에 이미 확인한 팝업은 트리를 다시 읽지 않는다. 기존 항목의 재숨김은
+                    // hidden 목록에 추가하지 않으므로 별도 LINQ 목록을 만들 필요가 없다.
+                    for (var i = 0; i < hidden.Count; i++)
+                    {
+                        var window = hidden[i];
+                        if (window.Owner != main || popups.Contains(window.Hwnd)) continue;
+                        if (!window.IsStillSame() || BetaLayout.OwnerOfAdPopup(window.Hwnd) != main) continue;
+                        Hide(window.Hwnd);
+                        hasKnownPopup = true;
+                    }
+                    if (betaWorker == null) betaCrop.Apply(main, popups);
+                    else betaWorker.Apply(main);
+                    return popups.Count > 0 || hasKnownPopup;
+                }
                 var layout = Layout.Read(main);
                 if (layout == null) return false;
 
@@ -74,13 +113,15 @@ namespace KakaoAdHider
         /// <summary>숨긴 광고를 다시 보이게 하고 본문 뷰를 원래 높이로 되돌린다.</summary>
         public void RestoreAll()
         {
-            foreach (var main in FindMainWindows(FindProcessIds()))
+            if (betaWorker == null) betaCrop.RestoreAll();
+            // 이 인스턴스가 실제로 확장한 창만 복원한다.
+            foreach (var main in gaps.Keys.ToList())
             {
                 using (new DpiScope(main))
                 {
                     var layout = Layout.Read(main);
                     if (layout == null) continue;
-                    var bottom = layout.SlotRect.Top - (gaps.TryGetValue(main, out var gap) ? gap : DefaultGap);
+                    var bottom = layout.SlotRect.Top - gaps[main];
                     foreach (var view in layout.Views.Where(v => v.Rect.Bottom > layout.SlotRect.Top))
                         Resize(view, bottom);
                 }
@@ -94,6 +135,8 @@ namespace KakaoAdHider
         /// <summary>사라진 창 핸들을 정리한다. 핸들 값이 다른 창에 재사용돼 엉뚱한 창을 되살리는 일을 막는다.</summary>
         public void Prune()
         {
+            if (betaWorker == null) betaCrop.Prune();
+            else betaWorker.Prune();
             hidden.RemoveAll(w => !w.IsStillSame());
             foreach (var main in gaps.Keys.Where(h => !IsWindow(h)).ToList()) gaps.Remove(main);
         }
@@ -188,6 +231,7 @@ namespace KakaoAdHider
         readonly struct HiddenWindow
         {
             public readonly IntPtr Hwnd;
+            public readonly IntPtr Owner;
             readonly uint processId;
             readonly string className;
 
@@ -196,11 +240,13 @@ namespace KakaoAdHider
                 Hwnd = hwnd;
                 this.processId = processId;
                 this.className = className;
+                Owner = GetWindow(hwnd, GW_OWNER);
             }
 
             public static HiddenWindow Of(IntPtr hwnd) => new(hwnd, ProcessIdOf(hwnd), ClassName(hwnd));
 
-            public bool IsStillSame() => IsWindow(Hwnd) && ProcessIdOf(Hwnd) == processId && ClassName(Hwnd) == className;
+            public bool IsStillSame() => IsWindow(Hwnd) && ProcessIdOf(Hwnd) == processId
+                && ClassName(Hwnd) == className && GetWindow(Hwnd, GW_OWNER) == Owner;
         }
     }
 }
