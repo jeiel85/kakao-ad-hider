@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- Windows 10/11에 기본 탑재된 .NET Framework 4.8을 대상으로 해서 별도 런타임 설치 없이 실행되게 한다. -->
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>latest</LangVersion>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>KakaoAdHider</AssemblyName>
+    <RootNamespace>KakaoAdHider</RootNamespace>
+    <Version>0.1.0</Version>
+    <Product>카톡 광고 숨김</Product>
+    <Description>카카오톡 PC 메인 창 하단 배너 광고를 숨기는 트레이 앱</Description>
+  </PropertyGroup>
+
+</Project>
