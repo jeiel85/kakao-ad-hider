@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kakao-ad-hider · 카카오톡 PC 배너 광고 숨기기</title>
+<meta name="description" content="카카오톡 PC(Windows) 목록 아래 배너 광고를 숨기고, 그 자리까지 목록을 늘려 주는 23KB짜리 비공식 트레이 앱.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="kakao-ad-hider · 그 광고, 창 하나였습니다">
+<meta property="og:description" content="카카오톡 PC 목록 아래 배너 광고를 숨기는 23KB짜리 비공식 트레이 앱. 설치 없음, 오픈소스.">
+<meta property="og:url" content="https://jeiel85.github.io/kakao-ad-hider/">
+<meta name="theme-color" content="#F1F3F6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15.5' fill='%23343434'/%3E%3Ctext x='16' y='20.5' font-family='Segoe UI,Arial,sans-serif' font-weight='700' font-size='12' fill='white' text-anchor='middle'%3EAD%3C/text%3E%3Cline x1='7' y1='7' x2='25' y2='25' stroke='%23EB4034' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+  /* ── 토큰 ─────────────────────────────────────────────
+     probe: 창 검사기의 선택 테두리 / slash: 트레이 아이콘의 빗금 */
+  :root {
+    --bg: #F1F3F6;
+    --surface: #FFFFFF;
+    --ink: #16181D;
+    --ink-2: #3E4450;
+    --muted: #6A7180;
+    --line: #D8DDE4;
+    --grid: rgba(22, 24, 29, .055);
+    --probe: #2B63F2;
+    --probe-tint: rgba(43, 99, 242, .10);
+    --on-probe: #FFFFFF;
+    --slash: #E5432F;
+    --win: #FFFFFF;
+    --win-rail: #EEF0F4;
+    --win-bar: #E4E7ED;
+    --win-bar-strong: #C9CED8;
+    --win-edge: #CDD2DA;
+    --a1: #C9D6FF; --a2: #FFD6C7; --a3: #CFE8D7; --a4: #E3D6F5; --a5: #F4E3BD;
+    --ad-from: #FFB36B; --ad-to: #FF7059;
+    --shadow: 0 30px 70px -30px rgba(22, 24, 29, .38);
+
+    --font-display: "Black Han Sans", "IBM Plex Sans KR", sans-serif;
+    --font-body: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    --max: 1120px;
+    --gutter: clamp(16px, 4vw, 40px);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0E1014;
+      --surface: #151820;
+      --ink: #ECEEF2;
+      --ink-2: #C2C7D0;
+      --muted: #8C94A3;
+      --line: #262B34;
+      --grid: rgba(255, 255, 255, .045);
+      --probe: #7099FF;
+      --probe-tint: rgba(112, 153, 255, .14);
+      --on-probe: #0E1014;
+      --slash: #FF5C48;
+      --win: #1A1D24;
+      --win-rail: #14171D;
+      --win-bar: #2A2F38;
+      --win-bar-strong: #3A404B;
+      --win-edge: #2E333D;
+      --a1: #3A4A7A; --a2: #6E4538; --a3: #355642; --a4: #4E3E68; --a5: #6A5730;
+      --ad-from: #D98A45; --ad-to: #D2533F;
+      --shadow: 0 30px 70px -30px rgba(0, 0, 0, .75);
+    }
+  }
+
+  /* ── 기본 ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.75;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  code { font-family: var(--font-mono); font-size: .86em; }
+  :focus-visible { outline: 3px solid var(--probe); outline-offset: 3px; border-radius: 4px; }
+  .wrap { max-width: var(--max); margin-inline: auto; padding-inline: var(--gutter); }
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  .eyebrow {
+    margin: 0 0 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .02em;
+    color: var(--probe);
+  }
+
+  /* ── 헤더 ─────────────────────────────────────────── */
+  .site-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-block: 20px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .brand-icon { width: 26px; height: 26px; flex: none; }
+  .site-nav { display: flex; gap: 22px; font-size: 15px; }
+  .site-nav a { color: var(--muted); text-decoration: none; }
+  .site-nav a:hover { color: var(--ink); }
+  @media (max-width: 520px) {
+    .site-nav .nav-optional { display: none; }
+  }
+
+  /* ── 히어로 ───────────────────────────────────────── */
+  .hero {
+    display: grid;
+    gap: 48px;
+    padding-block: 40px 80px;
+  }
+  @media (min-width: 960px) {
+    .hero {
+      grid-template-columns: 1.05fr .95fr;
+      align-items: center;
+      gap: 56px;
+      padding-block: 64px 112px;
+    }
+  }
+  .hero-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    /* "창 하나였습니다."(약 7.8em)가 한 줄에 들어가는 크기 */
+    font-size: clamp(2.2rem, 9.6vw, 4rem);
+    line-height: 1.14;
+    letter-spacing: -.01em;
+  }
+  .nowrap { white-space: nowrap; }
+  /* 헤드라인 안의 "창 하나"에 씌운 창 검사기 선택 테두리 */
+  .probe-word {
+    position: relative;
+    display: inline-block;
+    padding: 0 .08em;
+    margin-right: .04em;
+    background: var(--probe-tint);
+    box-shadow: 0 0 0 2px var(--probe);
+    border-radius: 2px;
+  }
+  .probe-word-tag {
+    position: absolute;
+    left: -2px;
+    top: calc(100% + 8px);
+    padding: 5px 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    color: var(--on-probe);
+    background: var(--probe);
+    border-radius: 4px;
+  }
+  .lede {
+    max-width: 34em;
+    margin: 52px 0 0;
+    font-size: clamp(17px, 1.6vw, 19px);
+    color: var(--ink-2);
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 50px;
+    padding: 0 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .btn svg { width: 18px; height: 18px; flex: none; }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: var(--probe); color: var(--on-probe); }
+  .btn-ghost { background: var(--surface); border: 1px solid var(--line); }
+  .btn-ghost:hover { border-color: var(--ink); }
+  .meta {
+    margin: 18px 0 0;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── 데모: 메신저 창 모형 ──────────────────────────── */
+  .demo { margin: 0; }
+  .canvas {
+    display: grid;
+    place-items: center;
+    padding: 56px 16px 40px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background-color: var(--surface);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+  .mock {
+    --tb: 30px;
+    --ad-h: 88px;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+    position: relative;
+    width: min(100%, 340px);
+    height: 500px;
+    background: var(--win);
+    border: 1px solid var(--win-edge);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .mock-titlebar {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: var(--tb);
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding-right: 10px;
+    color: var(--muted);
+  }
+  .mock-titlebar svg { width: 54px; height: 10px; }
+  .mock-view {
+    position: absolute;
+    top: var(--tb);
+    left: 0;
+    right: 0;
+    bottom: calc(var(--ad-h) + 1px);
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    overflow: hidden;
+    border-radius: 0 0 10px 10px;
+    transition: bottom .75s var(--ease);
+  }
+  .mock-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 0;
+    background: var(--win-rail);
+  }
+  .mock-rail i { width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--win-bar-strong); }
+  .mock-rail i:first-child { background: var(--win-bar-strong); }
+  .mock-rail .rail-bottom { margin-top: auto; border-radius: 50%; }
+  .mock-panel { padding: 14px 14px 0; overflow: hidden; }
+  .mock-head { display: flex; align-items: center; justify-content: space-between; height: 30px; margin-bottom: 8px; }
+  .mock-head b { width: 34%; height: 12px; border-radius: 4px; background: var(--win-bar-strong); }
+  .mock-head i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--win-bar-strong); }
+  .mock-list { list-style: none; margin: 0; padding: 0; }
+  .mock-list li { display: flex; align-items: center; gap: 10px; height: 46px; }
+  .av { width: 32px; height: 32px; flex: none; border-radius: 11px; }
+  .av.a1 { background: var(--a1); } .av.a2 { background: var(--a2); } .av.a3 { background: var(--a3); }
+  .av.a4 { background: var(--a4); } .av.a5 { background: var(--a5); }
+  .rows { display: grid; gap: 6px; flex: 1; }
+  .rows b, .rows i { display: block; height: 8px; border-radius: 4px; background: var(--win-bar); }
+  .rows b { width: var(--w1); background: var(--win-bar-strong); }
+  .rows i { width: var(--w2); }
+
+  .mock-slot {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: var(--ad-h);
+    border-radius: 0 0 10px 10px;
+    transition: opacity .35s;
+  }
+  .slot-outline {
+    position: absolute;
+    inset: 4px;
+    border: 2px dashed var(--probe);
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity .35s;
+  }
+  .mock-ad {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: var(--ad-h);
+    border-radius: 0 0 10px 10px;
+    transition: transform .6s var(--ease), box-shadow .6s var(--ease), opacity .45s, border-radius .6s;
+  }
+  .ad-art {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 18px;
+    overflow: hidden;
+    border-radius: inherit;
+    background: linear-gradient(115deg, var(--ad-from), var(--ad-to));
+  }
+  .ad-lines { display: grid; gap: 8px; flex: 1; }
+  .ad-lines b, .ad-lines i { display: block; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, .92); }
+  .ad-lines b { width: 72%; }
+  .ad-lines i { width: 46%; background: rgba(255, 255, 255, .6); }
+  .ad-blob { width: 54px; height: 54px; flex: none; border-radius: 50%; background: rgba(255, 255, 255, .85); }
+  .ad-chip {
+    position: absolute;
+    top: 7px; right: 8px;
+    padding: 1px 5px;
+    font: 500 10px/1.4 var(--font-mono);
+    color: #fff;
+    background: rgba(0, 0, 0, .28);
+    border-radius: 3px;
+  }
+  /* 광고 창 안에서 왼쪽 위(8%, 20%) → 오른쪽 아래(92%, 80%)로 긋는 빗금 */
+  .strike {
+    position: absolute;
+    left: 8%;
+    top: 20%;
+    width: 86%;
+    height: 7px;
+    border-radius: 4px;
+    background: var(--slash);
+    transform: rotate(10.5deg) scaleX(0);
+    transform-origin: left center;
+    transition: transform .35s var(--ease);
+  }
+
+  /* 창 검사기 선택 테두리와 이름표 */
+  .frame {
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--probe);
+    background: var(--probe-tint);
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+  }
+  .tag {
+    position: absolute;
+    left: -2px;
+    bottom: calc(100% + 6px);
+    padding: 3px 7px;
+    font: 500 11px/1.3 var(--font-mono);
+    white-space: nowrap;
+    color: var(--on-probe);
+    background: var(--probe);
+    border-radius: 4px;
+  }
+  .tag-dashed { color: var(--probe); background: var(--surface); border: 1px dashed var(--probe); }
+  /* 결과 화면이 깨끗하게 보이도록 목록에는 윤곽선만 */
+  .frame-view { border-radius: 0 0 10px 10px; background: transparent; }
+  .frame-view .tag { top: 8px; bottom: auto; left: 56px; }
+  .slot-outline .tag { left: -2px; bottom: auto; top: calc(100% + 8px); }
+
+  .cursor {
+    position: absolute;
+    left: 78%;
+    top: 34%;
+    width: 22px;
+    height: 22px;
+    margin: -11px 0 0 -11px;
+    color: var(--ink);
+    opacity: 0;
+    transition: left .9s var(--ease), top .9s var(--ease), opacity .3s;
+    pointer-events: none;
+  }
+
+  /* 데모 단계: 검사 → 들어 올림 → 빗금 → 숨김 → 확장 */
+  .mock.is-inspect .cursor { opacity: 1; left: 52%; top: calc(100% - var(--ad-h) / 2); }
+  .mock.is-inspect .frame-ad { opacity: 1; }
+  .mock.is-lift .mock-ad {
+    transform: translate(12px, -22px);
+    box-shadow: 0 22px 40px -16px rgba(0, 0, 0, .45);
+    border-radius: 8px;
+  }
+  .mock.is-lift .slot-outline { opacity: 1; }
+  .mock.is-lift .cursor { left: 56%; top: calc(100% - var(--ad-h) / 2 - 22px); }
+  .mock.is-strike .strike { transform: rotate(10.5deg) scaleX(1); }
+  .mock.is-hidden .mock-ad { opacity: 0; transform: translate(12px, -22px) scale(.95); }
+  .mock.is-hidden .mock-slot { opacity: 0; }
+  .mock.is-hidden .cursor { opacity: 0; }
+  .mock.is-extended .mock-view { bottom: 0; }
+  .mock.is-extended .frame-view { opacity: 1; }
+
+  .demo-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+    min-height: 44px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .replay {
+    flex: none;
+    min-height: 36px;
+    padding: 0 14px;
+    font: 500 13px var(--font-mono);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .replay:hover { border-color: var(--ink); }
+
+  /* ── 공통 섹션 ────────────────────────────────────── */
+  .section { padding-block: clamp(64px, 9vw, 112px); border-top: 1px solid var(--line); }
+  .section-head { max-width: 40em; margin-bottom: 48px; }
+  .section-head h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(1.9rem, 4.2vw, 2.8rem);
+    line-height: 1.18;
+  }
+  .section-lede { margin: 16px 0 0; color: var(--ink-2); }
+  h3 { margin: 0; font-size: 1.06rem; font-weight: 600; line-height: 1.5; }
+
+  /* ── 작동 원리 ────────────────────────────────────── */
+  .how-grid { display: grid; gap: 40px; }
+  @media (min-width: 960px) {
+    .how-grid { grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: start; }
+  }
+  .calls { list-style: none; counter-reset: call; margin: 0; padding: 0; display: grid; gap: 28px; }
+  .calls li { counter-increment: call; display: grid; grid-template-columns: 34px 1fr; column-gap: 16px; }
+  .calls li::before {
+    content: counter(call);
+    grid-row: span 3;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    font: 500 14px var(--font-mono);
+    color: var(--on-probe);
+    background: var(--probe);
+    border-radius: 8px;
+  }
+  .calls code {
+    display: inline-block;
+    justify-self: start;
+    margin-top: 6px;
+    padding: 3px 8px;
+    color: var(--probe);
+    background: var(--probe-tint);
+    border-radius: 5px;
+  }
+  .calls p { margin: 8px 0 0; color: var(--ink-2); }
+
+  .tree {
+    margin: 0;
+    padding: 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .tree figcaption { margin-bottom: 18px; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+  .tree-list, .tree-list ul { list-style: none; margin: 0; padding: 0; }
+  .tree-list ul { margin-left: 9px; padding-left: 18px; border-left: 1px solid var(--line); }
+  .tree-list > li + li { margin-top: 16px; }
+  .node { position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 7px 0; }
+  .tree-list ul .node::before {
+    content: "";
+    position: absolute;
+    left: -18px;
+    top: 1.3em;
+    width: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .n-name { font-weight: 600; }
+  .n-cls { font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+  .n-act {
+    margin-left: auto;
+    padding: 1px 8px;
+    font: 500 12px/1.6 var(--font-mono);
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .n-act.grow { color: var(--probe); background: var(--probe-tint); }
+  .n-act.hide { color: var(--slash); border: 1px solid var(--slash); }
+  .node.is-cut .n-name {
+    text-decoration: line-through;
+    text-decoration-color: var(--slash);
+    text-decoration-thickness: 2px;
+  }
+
+  .note {
+    max-width: 44em;
+    margin: 48px 0 0;
+    padding-left: 18px;
+    border-left: 3px solid var(--probe);
+    color: var(--ink-2);
+  }
+
+  /* ── 하는 일 / 하지 않는 일 ───────────────────────── */
+  .ledger { display: grid; gap: 16px; }
+  @media (min-width: 760px) { .ledger { grid-template-columns: 1fr 1fr; } }
+  .ledger-col {
+    padding: 28px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .ledger-col ul { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 12px; }
+  .ledger-col li { position: relative; padding-left: 28px; color: var(--ink-2); }
+  .ledger-col li::before { content: ""; position: absolute; left: 2px; top: .62em; }
+  .does li::before { width: 11px; height: 11px; border: 2px solid var(--probe); background: var(--probe-tint); border-radius: 2px; }
+  .doesnt li::before {
+    left: 0;
+    top: .78em;
+    width: 15px;
+    height: 3px;
+    background: var(--slash);
+    border-radius: 2px;
+    transform: rotate(45deg);
+  }
+
+  /* ── 설치 ─────────────────────────────────────────── */
+  .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 16px; }
+  @media (min-width: 880px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .steps li {
+    counter-increment: step;
+    padding: 26px 24px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+  .steps li::before {
+    content: counter(step);
+    display: block;
+    margin-bottom: 14px;
+    font-family: var(--font-display);
+    font-size: 2rem;
+    line-height: 1;
+    color: var(--probe);
+  }
+  .steps p { margin: 8px 0 0; color: var(--ink-2); }
+  .inline-icon { width: 1.2em; height: 1.2em; vertical-align: -.25em; }
+
+  .hash {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 16px;
+    align-items: center;
+    margin-top: 24px;
+    padding: 20px 24px;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+  }
+  .hash-label { margin: 0; grid-column: 1 / -1; font-family: var(--font-mono); font-size: 13px; color: var(--muted); }
+  .hash-value { font-size: 14px; word-break: break-all; }
+  .copy {
+    min-height: 36px;
+    padding: 0 14px;
+    font: 500 13px var(--font-mono);
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .copy:hover { border-color: var(--ink); }
+  .hash-help { margin: 6px 0 0; grid-column: 1 / -1; font-size: 15px; color: var(--muted); }
+
+  /* ── 알아 둘 점 ───────────────────────────────────── */
+  .limits { list-style: none; margin: 0; padding: 0; max-width: 46em; }
+  .limits li { padding: 16px 0; border-bottom: 1px solid var(--line); color: var(--ink-2); }
+  .limits li:first-child { border-top: 1px solid var(--line); }
+  .limits b { color: var(--ink); font-weight: 600; }
+
+  /* ── 푸터 ─────────────────────────────────────────── */
+  .site-footer {
+    padding-block: 40px 56px;
+    border-top: 1px solid var(--line);
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .site-footer p { margin: 0; }
+  .footer-links { margin-top: 10px !important; font-family: var(--font-mono); font-size: 13px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .mock *, .mock *::before, .mock *::after { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="icon-ad" viewBox="0 0 32 32">
+    <circle cx="16" cy="16" r="15.5" fill="#343434"/>
+    <text x="16" y="20.5" font-family="Segoe UI, Arial, sans-serif" font-weight="700" font-size="12" fill="#fff" text-anchor="middle">AD</text>
+    <line x1="7" y1="7" x2="25" y2="25" stroke="#EB4034" stroke-width="4" stroke-linecap="round"/>
+  </symbol>
+</svg>
+
+<header class="site-header wrap">
+  <a class="brand" href="#top"><svg class="brand-icon" aria-hidden="true"><use href="#icon-ad"/></svg>kakao-ad-hider</a>
+  <nav class="site-nav" aria-label="페이지 메뉴">
+    <a class="nav-optional" href="#how">작동 원리</a>
+    <a class="nav-optional" href="#install">설치</a>
+    <a href="https://github.com/jeiel85/kakao-ad-hider">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="hero wrap">
+    <div>
+      <p class="eyebrow">Windows용 카카오톡 PC · 비공식 도구</p>
+      <h1 class="hero-title">그 광고,<br><span class="nowrap"><span class="probe-word">창 하나<span class="probe-word-tag" aria-hidden="true">EVA_Window_Dblclk</span></span>였습니다.</span></h1>
+      <p class="lede">카카오톡 PC 목록 아래 배너는 메인 창 위에 따로 띄운 작은 창입니다. kakao-ad-hider는 그 창을 숨기고, 비는 자리까지 친구·채팅 목록을 늘립니다.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://github.com/jeiel85/kakao-ad-hider/releases/latest/download/KakaoAdHider.exe">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3v10M5.5 8.5 10 13l4.5-4.5M4 17h12"/></svg>
+          KakaoAdHider.exe 내려받기
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/jeiel85/kakao-ad-hider">소스 보기</a>
+      </div>
+      <p class="meta">v0.1.0 · 23KB · Windows 10/11 · 설치 없음 · MIT</p>
+    </div>
+
+    <figure class="demo">
+      <div class="canvas">
+        <div class="mock" id="mock" role="img" aria-label="메신저 창 아래쪽 광고 팝업을 찾아 숨기고, 목록을 창 바닥까지 늘리는 과정">
+          <div class="mock-titlebar">
+            <svg viewBox="0 0 54 10" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+              <path d="M2 5h8"/><rect x="22" y="1" width="8" height="8"/><path d="M44 1l8 8M52 1l-8 8"/>
+            </svg>
+          </div>
+          <div class="mock-view">
+            <div class="mock-rail"><i></i><i></i><i></i><i class="rail-bottom"></i></div>
+            <div class="mock-panel">
+              <div class="mock-head"><b></b><i></i></div>
+              <ul class="mock-list">
+                <li><span class="av a1"></span><span class="rows" style="--w1:42%;--w2:70%"><b></b><i></i></span></li>
+                <li><span class="av a2"></span><span class="rows" style="--w1:30%;--w2:84%"><b></b><i></i></span></li>
+                <li><span class="av a3"></span><span class="rows" style="--w1:52%;--w2:58%"><b></b><i></i></span></li>
+                <li><span class="av a4"></span><span class="rows" style="--w1:36%;--w2:76%"><b></b><i></i></span></li>
+                <li><span class="av a5"></span><span class="rows" style="--w1:46%;--w2:64%"><b></b><i></i></span></li>
+                <li><span class="av a1"></span><span class="rows" style="--w1:28%;--w2:80%"><b></b><i></i></span></li>
+                <li><span class="av a3"></span><span class="rows" style="--w1:40%;--w2:52%"><b></b><i></i></span></li>
+                <li><span class="av a2"></span><span class="rows" style="--w1:54%;--w2:72%"><b></b><i></i></span></li>
+                <li><span class="av a4"></span><span class="rows" style="--w1:34%;--w2:66%"><b></b><i></i></span></li>
+                <li><span class="av a5"></span><span class="rows" style="--w1:44%;--w2:78%"><b></b><i></i></span></li>
+              </ul>
+            </div>
+            <span class="frame frame-view" aria-hidden="true"><span class="tag">OnlineMainView · <span data-height>695</span>px</span></span>
+          </div>
+          <div class="mock-slot" aria-hidden="true">
+            <span class="slot-outline"><span class="tag tag-dashed">EVA_ChildWindow · 빈 슬롯</span></span>
+          </div>
+          <div class="mock-ad" aria-hidden="true">
+            <div class="ad-art"><span class="ad-lines"><b></b><i></i></span><span class="ad-blob"></span><span class="ad-chip">AD</span></div>
+            <span class="frame frame-ad"><span class="tag">EVA_Window_Dblclk · 팝업</span></span>
+            <span class="strike"></span>
+          </div>
+          <svg class="cursor" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <circle cx="11" cy="11" r="6"/><path d="M11 1v6M11 15v6M1 11h6M15 11h6"/>
+          </svg>
+        </div>
+      </div>
+      <figcaption class="demo-caption">
+        <span data-caption>카카오톡 PC 목록 아래에 배너가 있습니다.</span>
+        <button type="button" class="replay" data-replay hidden>다시 보기</button>
+      </figcaption>
+    </figure>
+  </section>
+
+  <section class="section" id="how" aria-labelledby="how-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">작동 원리</p>
+        <h2 id="how-title">호출 세 번이면 됩니다</h2>
+        <p class="section-lede">광고는 메인 창이 소유한 팝업이고, 그 아래에는 광고만큼 비워 둔 빈 창이 있습니다. 둘을 숨기고 목록 창의 높이만 바꾸면 나머지는 카카오톡이 알아서 다시 그립니다.</p>
+      </header>
+
+      <div class="how-grid">
+        <ol class="calls">
+          <li>
+            <h3>광고 팝업 숨기기</h3>
+            <code>ShowWindowAsync(popup, SW_HIDE)</code>
+            <p>메인 창이 소유하고, 빈 슬롯과 좌표가 같은 제목 없는 창만 고릅니다. 메뉴나 이모티콘 창은 건드리지 않습니다.</p>
+          </li>
+          <li>
+            <h3>빈 슬롯 숨기기</h3>
+            <code>ShowWindowAsync(slot, SW_HIDE)</code>
+            <p>광고가 놓이던 100px짜리 자리입니다.</p>
+          </li>
+          <li>
+            <h3>목록 늘리기</h3>
+            <code>SetWindowPos(view, …, 796)</code>
+            <p>바깥 목록 창 크기만 바꾸면 안쪽 목록과 왼쪽 메뉴는 카카오톡이 다시 배치합니다.</p>
+          </li>
+        </ol>
+
+        <figure class="tree">
+          <figcaption>카카오톡 PC 26.9.2의 실제 창 구조</figcaption>
+          <ul class="tree-list">
+            <li>
+              <div class="node"><span class="n-name">카카오톡 메인 창</span><span class="n-cls">EVA_Window_Dblclk</span></div>
+              <ul>
+                <li><div class="node"><span class="n-name">OnlineMainView</span><span class="n-cls">EVA_ChildWindow</span><span class="n-act grow">695 → 796px</span></div></li>
+                <li><div class="node"><span class="n-name">LockModeView</span><span class="n-cls">EVA_ChildWindow_Dblclk</span></div></li>
+                <li><div class="node is-cut"><span class="n-name">빈 슬롯</span><span class="n-cls">EVA_ChildWindow</span><span class="n-act hide">숨김</span></div></li>
+              </ul>
+            </li>
+            <li>
+              <div class="node is-cut"><span class="n-name">광고 팝업</span><span class="n-cls">EVA_Window_Dblclk · 소유자 = 메인 창</span><span class="n-act hide">숨김</span></div>
+              <ul>
+                <li><div class="node"><span class="n-name">광고 웹뷰</span><span class="n-cls">Chrome_WidgetWin_1 "MOMENT 광고"</span></div></li>
+              </ul>
+            </li>
+          </ul>
+        </figure>
+      </div>
+
+      <p class="note">창 크기를 바꾸면 카카오톡이 목록을 다시 광고 자리 위까지 줄입니다. 그래서 kakao-ad-hider는 카카오톡의 창 표시·크기 변경 이벤트를 듣고 있다가 다시 적용합니다. 개발 PC에서 재어 보니 약 40ms 안에 끝났습니다.</p>
+    </div>
+  </section>
+
+  <section class="section" id="scope" aria-labelledby="scope-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">범위</p>
+        <h2 id="scope-title">바꾸는 건 창의 표시와 크기뿐</h2>
+      </header>
+      <div class="ledger">
+        <div class="ledger-col does">
+          <h3>하는 일</h3>
+          <ul>
+            <li>목록 아래 광고 팝업과 빈 슬롯을 숨깁니다</li>
+            <li>친구·채팅 목록을 창 바닥까지 늘립니다</li>
+            <li>종료하면 광고와 원래 배치를 되돌립니다</li>
+            <li>원하면 Windows에 로그인할 때 자동으로 켜집니다</li>
+          </ul>
+        </div>
+        <div class="ledger-col doesnt">
+          <h3>하지 않는 일</h3>
+          <ul>
+            <li>카카오톡 파일을 고치거나 덮어쓰지 않습니다</li>
+            <li>카카오톡 메모리에 코드를 넣지 않습니다</li>
+            <li>인터넷에 접속하거나 정보를 모으지 않습니다</li>
+            <li>관리자 권한을 요구하지 않습니다</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install" aria-labelledby="install-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">설치</p>
+        <h2 id="install-title">설치 과정은 없습니다</h2>
+      </header>
+      <ol class="steps">
+        <li>
+          <h3>내려받아 폴더에 두기</h3>
+          <p><a href="https://github.com/jeiel85/kakao-ad-hider/releases/latest/download/KakaoAdHider.exe">KakaoAdHider.exe</a>를 계속 둘 폴더에 놓습니다. 자동 실행은 이 위치를 기억합니다.</p>
+        </li>
+        <li>
+          <h3>실행하기</h3>
+          <p>“Windows의 PC 보호” 창이 뜨면 <b>추가 정보 → 실행</b>을 누릅니다. 코드 서명이 없는 파일이라 뜨는 경고입니다.</p>
+        </li>
+        <li>
+          <h3>알림 영역에서 관리하기</h3>
+          <p>작업 표시줄의 <svg class="inline-icon" aria-hidden="true"><use href="#icon-ad"/></svg> 아이콘을 우클릭해 자동 실행을 켜거나 종료합니다.</p>
+        </li>
+      </ol>
+      <div class="hash">
+        <p class="hash-label">SHA-256 · v0.1.0 KakaoAdHider.exe</p>
+        <code class="hash-value" id="sha">beece491ccbfafd16df4a9116d863e64d1fee74552d351983ae1100b9d7385c7</code>
+        <button type="button" class="copy" data-copy="#sha">복사</button>
+        <p class="hash-help">PowerShell에서 <code>Get-FileHash .\KakaoAdHider.exe</code>를 실행해 같은 값인지 비교할 수 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="limits" aria-labelledby="limits-title">
+    <div class="wrap">
+      <header class="section-head">
+        <p class="eyebrow">알아 둘 점</p>
+        <h2 id="limits-title">이런 경우는 안 됩니다</h2>
+      </header>
+      <ul class="limits">
+        <li><b>Windows 전용입니다.</b> macOS 카카오톡은 앱 구조가 달라 지원하지 않습니다.</li>
+        <li><b>목록 아래 배너만 숨깁니다.</b> 채팅 목록의 (광고) 메시지는 추가한 카카오톡 채널이 보낸 것이라 대상이 아닙니다.</li>
+        <li><b>화면에서만 숨깁니다.</b> 광고를 불러오는 통신 자체는 막지 않습니다.</li>
+        <li><b>카카오톡을 관리자 권한으로 실행하면</b> 일반 권한 앱이 그 창을 조작할 수 없어 동작하지 않습니다.</li>
+        <li><b>카카오톡이 업데이트되면</b> 창 구조가 바뀌어 광고가 다시 보일 수 있습니다. 그럴 때는 <a href="https://github.com/jeiel85/kakao-ad-hider/issues">이슈로 알려 주세요</a>.</li>
+        <li><b>확인한 환경</b>은 Windows 11, 카카오톡 PC 26.9.2, 100% 배율입니다.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer wrap">
+  <p>카카오(Kakao Corp.)와 관계없는 비공식 도구입니다. ‘카카오톡’은 대상 앱을 가리키는 이름으로만 씁니다.</p>
+  <p class="footer-links">MIT License · <a href="https://github.com/jeiel85/kakao-ad-hider">GitHub</a> · <a href="https://github.com/jeiel85/kakao-ad-hider/releases">릴리스</a> · <a href="https://github.com/jeiel85/kakao-ad-hider/issues">문제 알리기</a></p>
+</footer>
+
+<script>
+(() => {
+  const mock = document.getElementById('mock');
+  const caption = document.querySelector('[data-caption]');
+  const heightLabel = mock.querySelector('[data-height]');
+  const replay = document.querySelector('[data-replay]');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const STATES = ['is-inspect', 'is-lift', 'is-strike', 'is-hidden', 'is-extended'];
+  const BEFORE = 695;
+  const AFTER = 796;
+
+  // [시작 시각(ms), 적용할 단계, 자막(null이면 유지)]
+  const timeline = [
+    [0, [], '카카오톡 PC 목록 아래에 배너가 있습니다.'],
+    [900, ['is-inspect'], '창 검사기로 보면 배너는 별도의 창입니다.'],
+    [2400, ['is-inspect', 'is-lift'], '메인 창이 소유한 팝업이 빈 슬롯 위에 겹쳐 있습니다.'],
+    [3900, ['is-inspect', 'is-lift', 'is-strike'], '팝업과 빈 슬롯을 숨깁니다.'],
+    [4350, ['is-lift', 'is-strike', 'is-hidden'], null],
+    [5100, ['is-lift', 'is-strike', 'is-hidden', 'is-extended'], '목록 창을 바닥까지 늘리면 안쪽은 카카오톡이 다시 배치합니다.'],
+  ];
+  const FINAL = timeline[timeline.length - 1];
+
+  let timers = [];
+  let counterFrame = 0;
+
+  function countHeight(to) {
+    cancelAnimationFrame(counterFrame);
+    if (reduceMotion.matches) { heightLabel.textContent = to; return; }
+    const from = Number(heightLabel.textContent);
+    const start = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / 700);
+      heightLabel.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) counterFrame = requestAnimationFrame(step);
+    };
+    counterFrame = requestAnimationFrame(step);
+  }
+
+  function apply([, states, text]) {
+    mock.classList.remove(...STATES);
+    mock.classList.add(...states);
+    if (text) caption.textContent = text;
+    if (states.includes('is-extended')) countHeight(AFTER);
+    else { cancelAnimationFrame(counterFrame); heightLabel.textContent = BEFORE; }
+  }
+
+  function play() {
+    timers.forEach(clearTimeout);
+    timers = timeline.map((entry) => setTimeout(() => apply(entry), entry[0]));
+  }
+
+  replay.hidden = false;
+  replay.addEventListener('click', play);
+
+  if (reduceMotion.matches) {
+    apply(FINAL);
+  } else if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { observer.disconnect(); play(); }
+    }, { threshold: 0.35 });
+    observer.observe(mock);
+  } else {
+    play();
+  }
+
+  document.querySelectorAll('[data-copy]').forEach((button) => {
+    const target = document.querySelector(button.dataset.copy);
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(target.textContent.trim());
+        button.textContent = '복사했습니다';
+      } catch {
+        // 클립보드 권한이 없으면 값을 선택해 두고 직접 복사하도록 안내한다.
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.textContent = 'Ctrl+C로 복사하세요';
+      }
+      setTimeout(() => { button.textContent = '복사'; }, 1800);
+    });
+  });
+})();
+</script>
+</body>
+</html>
